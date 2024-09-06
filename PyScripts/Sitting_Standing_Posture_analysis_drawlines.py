@@ -17,14 +17,19 @@ def detect_and_analyze_posture(frame):
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
     # Run YOLO model to detect and estimate pose keypoints on the specified device
-    results = model(rgb_frame, save=False, device=device)
+    results = model(rgb_frame, save=False, device=device) 
+    human_activity = False 
 
+    # process each detected (person )
     for result in results:
         # Loop through each detected person
+        if len(result.keypoints) == 0:
+            continue
+        
         for i, person in enumerate(result.keypoints):
             keypoints = person.xy.cpu().numpy()  # Extract keypoints as a 2D matrix
 
-            # Analyze sitting and standing posture
+            # Analyze sitting and standing posture             
             is_sitting = analyze_sitting_posture(keypoints)
             is_good_posture, posture_slope_or_angle = analyze_good_posture(keypoints, is_sitting)
 
@@ -41,25 +46,27 @@ def detect_and_analyze_posture(frame):
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             
             # Draw keypoints and lines on the frame
-            draw_keypoints(frame, keypoints, is_sitting)
+            draw_keypoints(frame, keypoints) 
 
             # Draw lines to show nose-to-ear-to-shoulder alignment
             if is_sitting:
                 draw_sitting_posture_lines(frame, keypoints)
-            else:
-                draw_posture_lines(frame, keypoints) 
+           
+            draw_posture_lines(frame, keypoints) 
+            
 
             # Display posture status above the bounding box if coordinates are valid
             if x1 != 0 and y1 != 0:
+                human_activity = True
                 posture_status = "Good Posture" if is_good_posture else "Bad Posture"
                 cv2.putText(frame, posture_status, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
                 # Optionally display the slope of the head-to-neck line
                 if posture_slope_or_angle is not None and is_sitting:
-                    cv2.putText(frame, f"Slope: {posture_slope_or_angle:.2f}", (x1, y1 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2) 
+                    cv2.putText(frame, f"Sit_Slope: {posture_slope_or_angle:.2f}", (x1, y1 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2) 
                 elif posture_slope_or_angle is not None:
-                    cv2.putText(frame, f"Angle: {posture_slope_or_angle:.2f}", (x1, y1 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2) 
-    return frame
+                    cv2.putText(frame, f"Stand_Angle: {posture_slope_or_angle:.2f}", (x1, y1 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2) 
+    return human_activity, frame
 
 def analyze_sitting_posture(keypoints):
     """
@@ -70,13 +77,28 @@ def analyze_sitting_posture(keypoints):
         # Keypoint indices based on YOLOv8 Pose model
         left_shoulder  = keypoints[0][5]       # Left shoulder (x, y)
         right_shoulder = keypoints[0][6]       # Right shoulder (x, y)
-        hip            = keypoints[0][11]      # Hip (x, y)
-        knee           = keypoints[0][13]      # Knee (x, y)
-        ankle          = keypoints[0][15]      # Ankle (x, y)
+        
+        left_hip       = keypoints[0][11]      # Hip (x, y)
+        right_hip      = keypoints[0][12] 
+        
+        left_knee      = keypoints[0][13]      # Knee (x, y)
+        right_knee     = keypoints[0][14]
+        
+        left_ankle     = keypoints[0][15]      # Ankle (x, y)
+        right_ankle    = keypoints[0][16]
 
         # Check alignment of body parts to determine sitting posture
-        if knee[1] > hip[1] and ankle[1] > knee[1] and (left_shoulder[1] < hip[1] or right_shoulder[1] < hip[1]):
+        # the [0, 0] coordinate locates on the top left corner, so 
+        if left_knee[1] < left_hip[1] and right_knee[1] < right_hip[1]:
+            print("   ------ LKnee: " + str( left_knee[1]) + " LHip: " + str( left_hip[1]) )
             return True
+        knee_hip_shoulder_angle_left  = calculate_angle( left_shoulder, left_hip, left_knee) 
+        knee_hip_shoulder_angle_right = calculate_angle( right_shoulder, right_hip, right_knee) 
+
+        if knee_hip_shoulder_angle_left < 100 and knee_hip_shoulder_angle_right < 100:
+            print( "  ------ Angle: " + str(knee_hip_shoulder_angle_left) ) 
+            return True 
+            
     except IndexError:
         # In case any keypoints are missing
         return False
@@ -149,7 +171,7 @@ def analyze_good_posture(keypoints, is_sitting):
     return False, None
 
 
-def draw_keypoints(frame, keypoints, is_sitting):
+def draw_keypoints(frame, keypoints):
     """
     Draws keypoints and lines between them to illustrate pose estimation.
     """
@@ -163,6 +185,7 @@ def draw_keypoints(frame, keypoints, is_sitting):
                 y = coordinate[1]
                 if x > 0 and y > 0:  # Only draw valid points
                     cv2.circle(frame, (int(x), int(y)), 2, (255, 0, 0), -1) 
+    #return frame 
 
 
 
@@ -201,11 +224,19 @@ def draw_posture_lines(frame, keypoints):
         nose = keypoints[0][0]              # nose (x, y)         
         left_eye = keypoints[0][1]          # left eye (x, y)       
         right_eye = keypoints[0][2] 
+
+        left_ear = keypoints[0][3]          # ears 
+        right_ear = keypoints[0][4] 
+
         left_shoulder = keypoints[0][5]     # Left shoulder (x, y)   
         right_shoulder = keypoints[0][6]    # Right shoulder (x, y) 
 
         left_elbow = keypoints[0][7]        # left elbow 
         right_elbow = keypoints[0][8] 
+
+        left_wrist = keypoints[0][9]        # left wrist 
+        right_wrist = keypoints[0][10] 
+
 
         left_hip = keypoints[0][11]         # left hip
         right_hip = keypoints[0][12]        # right hip 
@@ -215,32 +246,36 @@ def draw_posture_lines(frame, keypoints):
         right_knee = keypoints[0][14] 
  
         # Ensure keypoints are valid before drawing lines 
-        if all(kp[0] > 0 for kp in [ left_eye, right_eye, left_shoulder, right_shoulder, left_hip, right_hip, left_knee, right_knee]):
-            cv2.line(frame, (int(nose[0]), int(nose[1])), (int(left_eye [0]), int(left_eye [1])), (0, 255, 255), 2) 
-            cv2.line(frame, (int(nose[0]), int(nose[1])), (int(right_eye [0]), int(right_eye [1])), (0, 255, 255), 2) 
-            cv2.line(frame, (int(left_eye[0]), int(left_eye [1])), (int(left_shoulder[0]), int(left_shoulder[1])), (0, 255, 255), 2) 
-            cv2.line(frame, (int(left_shoulder[0]), int(left_shoulder [1])), (int(left_elbow[0]), int(left_elbow[1])), (0, 255, 255), 2) 
-            cv2.line(frame, (int(left_shoulder[0]), int(left_shoulder[1])), (int(left_hip[0]), int(left_hip[1])), (0, 255, 255), 2) 
-            cv2.line(frame, (int(left_shoulder[0]), int(left_shoulder[1])), (int(right_shoulder[0]), int(right_shoulder[1])), (0, 255, 255), 2) 
-            cv2.line(frame, (int(left_hip[0]), int(left_hip[1])), (int(left_knee[0]), int(left_knee[1])), (0, 255, 255), 2) 
-            cv2.line(frame, (int(right_eye[0]), int(right_eye [1])), (int(right_shoulder[0]), int(right_shoulder[1])), (0, 255, 255), 2) 
-            cv2.line(frame, (int(right_shoulder[0]), int(right_shoulder [1])), (int(right_elbow[0]), int(right_elbow[1])), (0, 255, 255), 2) 
-            cv2.line(frame, (int(right_shoulder[0]), int(right_shoulder [1])), (int(right_hip[0]), int(right_hip[1])), (0, 255, 255), 2) 
-            cv2.line(frame, (int(right_hip[0]), int(right_hip[1])), (int(right_knee[0]), int(right_knee[1])), (0, 255, 255), 2) 
-            
-        elif all(kp[0] > 0 for kp in [ left_eye, left_shoulder, left_hip, left_knee]): 
-            # Draw lines: Head to Neck and Neck to Shoulders 
-            # cv2.line(frame, (int(nose[0]), int(nose[1])), (int(left_eye [0]), int(left_eye [1])), (0, 255, 255), 2) 
-            cv2.line(frame, (int(left_eye[0]), int(left_eye [1])), (int(left_shoulder[0]), int(left_shoulder[1])), (0, 255, 255), 2) 
-            cv2.line(frame, (int(left_shoulder[0]), int(left_shoulder [1])), (int(left_elbow[0]), int(left_elbow[1])), (0, 255, 255), 2) 
-            cv2.line(frame, (int(left_shoulder[0]), int(left_shoulder[1])), (int(left_hip[0]), int(left_hip[1])), (0, 255, 255), 2) 
-            cv2.line(frame, (int(left_hip[0]), int(left_hip[1])), (int(left_knee[0]), int(left_knee[1])), (0, 255, 255), 2) 
-            
-        elif all(kp[0] > 0 for kp in [ right_eye, right_shoulder, right_hip, right_knee]):             
-            cv2.line(frame, (int(right_eye[0]), int(right_eye [1])), (int(right_shoulder[0]), int(right_shoulder[1])), (0, 255, 255), 2) 
-            cv2.line(frame, (int(right_shoulder[0]), int(right_shoulder [1])), (int(right_elbow[0]), int(right_elbow[1])), (0, 255, 255), 2) 
-            cv2.line(frame, (int(right_shoulder[0]), int(right_shoulder [1])), (int(right_hip[0]), int(right_hip[1])), (0, 255, 255), 2) 
-            cv2.line(frame, (int(right_hip[0]), int(right_hip[1])), (int(right_knee[0]), int(right_knee[1])), (0, 255, 255), 2) 
+        # draw left arm lines
+        if all(kp[0] > 0 for kp in [ left_shoulder, left_elbow, left_wrist ]):
+            cv2.line(frame, (int(left_shoulder[0]), int(left_shoulder[1])), (int(left_elbow [0]), int(left_elbow [1])), (0, 255, 255), 2) 
+            cv2.line(frame, (int(left_elbow[0]), int(left_elbow[1])), (int(left_wrist [0]), int(left_wrist[1])), (0, 255, 255), 2) 
+        
+        # draw right arm lines
+        if all(kp[0] > 0 for kp in [ right_shoulder, right_elbow, right_wrist ]):
+            cv2.line(frame, (int(right_shoulder[0]), int(right_shoulder[1])), (int(right_elbow [0]), int(right_elbow [1])), (0, 255, 255), 2) 
+            cv2.line(frame, (int(right_elbow[0]), int(right_elbow[1])), (int(right_wrist [0]), int(right_wrist[1])), (0, 255, 255), 2) 
+        
+        # draw left shoulder-hip-knee    
+        if all(kp[0] > 0 for kp in [ left_shoulder, left_hip, left_knee ]):
+            cv2.line(frame, (int(left_shoulder[0]), int(left_shoulder[1])), (int(left_hip [0]), int(left_hip [1])), (0, 255, 255), 2) 
+            cv2.line(frame, (int(left_hip[0]), int(left_hip[1])), (int(left_knee [0]), int(left_knee[1])), (0, 255, 255), 2) 
+
+        # draw right shoulder-hip-knee    
+        if all(kp[0] > 0 for kp in [ right_shoulder, right_hip, right_knee ]):
+            cv2.line(frame, (int(right_shoulder[0]), int(right_shoulder[1])), (int(right_hip [0]), int(right_hip [1])), (0, 255, 255), 2) 
+            cv2.line(frame, (int(right_hip[0]), int(right_hip[1])), (int(right_knee [0]), int(right_knee[1])), (0, 255, 255), 2) 
+
+        # draw ear-shoulder
+        if all(kp[0] > 0 for kp in [ left_ear, left_shoulder ]):
+            cv2.line(frame, (int(left_ear[0]), int(left_ear[1])), (int(left_shoulder [0]), int(left_shoulder [1])), (0, 255, 255), 2) 
+        if all(kp[0] > 0 for kp in [ right_ear, right_shoulder ]):
+            cv2.line(frame, (int(right_ear[0]), int(right_ear[1])), (int(right_shoulder [0]), int(right_shoulder[1])), (0, 255, 255), 2) 
+        
+        # draw shoulder line
+        if all(kp[0] > 0 for kp in [ left_shoulder, right_shoulder ]):
+            cv2.line(frame, (int(left_shoulder[0]), int(left_shoulder[1])), (int(right_shoulder [0]), int(right_shoulder[1])), (0, 255, 255), 2) 
+        
 
     except IndexError:
         # Skip drawing if keypoints are missing
@@ -248,10 +283,10 @@ def draw_posture_lines(frame, keypoints):
 
 def main():
     # Specify the path to the input video file
-    input_video_path = "/home/jeff/HomeSecurity_VideoRecording/videos/20240906/camera_2_20240906_080314.avi"
+    input_video_path  = "/home/jeff/HomeSecurity_VideoRecording/videos/20240905/camera_0_20240905_083312.avi"
 
     # Specify the path to save the output video
-    output_video_path = "/home/jeff/HomeSecurity_VideoRecording/videos/20240906/camera_2_20240906_080314_POSTUREWITHLINES0906.avi"  # Replace with your desired output path
+    output_video_path = "/home/jeff/HomeSecurity_VideoRecording/videos/20240905/camera_0_20240905_083312_Short_POSTUREWITHLINES0906pm.avi"  # Replace with your desired output path
     os.makedirs(os.path.dirname(output_video_path), exist_ok=True)  # Create directory if it doesn't exist
 
     # Open the input video file
@@ -266,7 +301,7 @@ def main():
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
 
-    # Define the codec and create VideoWriter object
+    # Define the code-cv and create VideoWriter object
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
 
@@ -276,15 +311,17 @@ def main():
             break
 
         # Analyze posture for each frame
-        analyzed_frame = detect_and_analyze_posture(frame)
+        human_activity, analyzed_frame = detect_and_analyze_posture(frame)
 
-        # Write the analyzed frame to the output video
-        out.write(analyzed_frame)
+        # if there's human detected in current frame, write the analyzed frame to the output video
+        if human_activity:
+            out.write(analyzed_frame)
 
     # Release the resources
     cap.release()
     out.release()
-    cv2.destroyAllWindows()
+    cv2.destroyAllWindows() 
+    print("--- Output file saved to: " + str(output_video_path) )
 
 if __name__ == "__main__":
     main()
@@ -293,10 +330,10 @@ if __name__ == "__main__":
 
 
     # Specify the path to the input video file
-#    input_video_path = "/home/jeff/HomeSecurity_VideoRecording/videos/20240906/camera_0_20240906_083315.avi"  # Replace with your input video file path
+#    input_video_path = "/home/jeff/HomeSecurity_VideoRecording/videos/20240905/camera_0_20240905_083312.avi"  # Replace with your input video file path
 
     # Specify the path to save the output video
-#    output_video_path = "/home/jeff/HomeSecurity_VideoRecording/videos/20240906/camera_0_20240906_083315_POSTUREWITHLINES.avi"  # Replace with your desired output path
+#    output_video_path = "/home/jeff/HomeSecurity_VideoRecording/videos/20240905/camera_0_20240905_083312_POSTUREWITHLINES.avi"  # Replace with your desired output path
 #    os.makedirs(os.path.dirname(output_video_path), exist_ok=True)  # Create directory if it doesn't exist
 
 
