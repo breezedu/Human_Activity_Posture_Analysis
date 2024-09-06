@@ -65,7 +65,8 @@ The script requires the following libraries:
    - It calculates angles between keypoints to assess whether a person is sitting or standing.
    - Bounding boxes and lines between keypoints illustrate detected postures in real-time.
    
-   i.e. Bad Postures: 
+   i.e. Bad Postures:
+   
    ![Demo_image](./images/bad_posture_1.png)
 
    ![Demo_image](./images/bad_posture_2.png) 
@@ -76,7 +77,7 @@ The script requires the following libraries:
 
    ![Demo_image](./images/good_posture_2.png)
 
-3. **Key Outputs**
+4. **Key Outputs**
    - **Bounding Boxes**: Highlight detected humans in each frame.
    - **Keypoints**: Mark specific body parts with colored dots.
    - **Posture Status**: Displays whether the detected person is sitting or standing.
