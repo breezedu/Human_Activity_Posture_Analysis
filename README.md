@@ -112,4 +112,4 @@ This project is licensed under the MIT License. See the LICENSE file for more de
 
 ---
 
-Feel free to update the README with additional usage examples, contact information, or project-specific instructions as needed. Let me know if you need further assistance!
+Feel free to pull or fork this repo, hope this tiny project could give us some hints on other ideas!
