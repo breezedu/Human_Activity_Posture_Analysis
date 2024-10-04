@@ -261,6 +261,9 @@ def draw_posture_lines(frame, keypoints):
         
         left_knee = keypoints[0][13]        # left knee 
         right_knee = keypoints[0][14] 
+
+        left_heel = keypoints[0][15]        # left knee 
+        right_heel = keypoints[0][16] 
  
         # Ensure keypoints are valid before drawing lines 
         # draw left arm lines
@@ -283,6 +286,15 @@ def draw_posture_lines(frame, keypoints):
             cv2.line(frame, (int(right_shoulder[0]), int(right_shoulder[1])), (int(right_hip [0]), int(right_hip [1])), (0, 255, 255), 2) 
             cv2.line(frame, (int(right_hip[0]), int(right_hip[1])), (int(right_knee [0]), int(right_knee[1])), (0, 255, 255), 2) 
 
+        # draw left knee-heel     
+        if all(kp[0] > 0 for kp in [ left_heel, left_knee ]):
+            cv2.line(frame, (int(left_heel[0]), int(left_heel[1])), (int(left_knee [0]), int(left_knee[1])), (0, 255, 255), 2) 
+
+        # draw right knee-heel     
+        if all(kp[0] > 0 for kp in [ right_heel, right_knee ]):
+            cv2.line(frame, (int(right_heel[0]), int(right_heel[1])), (int(right_knee [0]), int(right_knee[1])), (0, 255, 255), 2) 
+
+
         # draw ear-shoulder
         if all(kp[0] > 0 for kp in [ left_ear, left_shoulder ]):
             cv2.line(frame, (int(left_ear[0]), int(left_ear[1])), (int(left_shoulder [0]), int(left_shoulder [1])), (0, 255, 255), 2) 
@@ -300,10 +312,10 @@ def draw_posture_lines(frame, keypoints):
 
 def main():
     # Specify the path to the input video file
-    input_video_path  = "/home/jeff/HomeSecurity_VideoRecording/recorded_videos/2024-09-09/camera_1_20240909_135830.mp4"
+    input_video_path  = "/mnt/HomeSecurityVideos/recorded_videos/running_demo.mp4"
 
     # Specify the path to save the output video
-    output_video_path = "/home/jeff/HomeSecurity_VideoRecording/recorded_videos/2024-09-09/camera_1_20240909_135830_POSTURE.mp4"  # Replace with your desired output path
+    output_video_path = "/mnt/HomeSecurityVideos/recorded_videos/running_demo_POSTURE.mp4"  # Replace with your desired output path
     os.makedirs(os.path.dirname(output_video_path), exist_ok=True)  # Create directory if it doesn't exist
 
     # Open the input video file
